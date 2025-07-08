@@ -1,0 +1,3 @@
+[submodule "rive-ios"]
+	path = rive-ios
+	url = https://github.com/rive-app/rive-ios

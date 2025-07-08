@@ -1,0 +1,534 @@
+diff --git forkSrcPrefix/Source/Fonts/RiveFallbackFontDescriptor+Extensions.swift forkDstPrefix/Source/Fonts/RiveFallbackFontDescriptor+Extensions.swift
+index 90d7acd441cdb2198ea1759afe8a6830583d8520..373ec652ec5f77809ffa6ee1fc43a8182ab0863c 100644
+--- forkSrcPrefix/Source/Fonts/RiveFallbackFontDescriptor+Extensions.swift
++++ forkDstPrefix/Source/Fonts/RiveFallbackFontDescriptor+Extensions.swift
+@@ -6,6 +6,8 @@
+ //  Copyright © 2024 Rive. All rights reserved.
+ //
+ 
++#if WITH_RIVE_TEXT
++
+ import Foundation
+ #if os(iOS) || os(visionOS) || os(tvOS)
+ import UIKit
+@@ -224,3 +226,5 @@ extension RiveNativeFont: RiveFontWidthProvider {
+         return Int(calculatedWidth)
+     }
+ }
++
++#endif
+diff --git forkSrcPrefix/Source/Renderer/CDNFileAssetLoader.mm forkDstPrefix/Source/Renderer/CDNFileAssetLoader.mm
+index e0581eec2fe5c3120e993e1fcc388056df1a7328..fa81ff5fef8eb316b726bb404fa35a6d31c321c2 100644
+--- forkSrcPrefix/Source/Renderer/CDNFileAssetLoader.mm
++++ forkDstPrefix/Source/Renderer/CDNFileAssetLoader.mm
+@@ -37,13 +37,15 @@
+                     // Load the data into the reader
+                     NSData* data = [NSData dataWithContentsOfURL:location];
+ 
++					#if WITH_RIVE_TEXT
+                     if ([asset isKindOfClass:[RiveFontAsset class]])
+                     {
+                         RiveFontAsset* fontAsset = (RiveFontAsset*)asset;
+                         [fontAsset font:[factory decodeFont:data]];
+                         [RiveLogger logFontAssetLoad:fontAsset fromURL:URL];
+                     }
+-                    else if ([asset isKindOfClass:[RiveImageAsset class]])
++                    #endif
++                    if ([asset isKindOfClass:[RiveImageAsset class]])
+                     {
+                         RiveImageAsset* imageAsset = (RiveImageAsset*)asset;
+                         [imageAsset renderImage:[factory decodeImage:data]];
+diff --git forkSrcPrefix/Source/Renderer/rive_renderer_view.mm forkDstPrefix/Source/Renderer/rive_renderer_view.mm
+index 00b30481406a000606f1680b7e21fcbbc5dc6ee2..317e9a02ce1a1306d8464852112461cc7245d31c 100644
+--- forkSrcPrefix/Source/Renderer/rive_renderer_view.mm
++++ forkDstPrefix/Source/Renderer/rive_renderer_view.mm
+@@ -12,10 +12,10 @@
+ #import "RivePrivateHeaders.h"
+ #import <RenderContext.h>
+ #import <RenderContextManager.h>
+-// We manually need to provide this as our build-time config isn't shared with
+-// xcode.
+-#define WITH_RIVE_AUDIO
++
++#if WITH_RIVE_AUDIO
+ #include "rive/audio/audio_engine.hpp"
++#endif
+ 
+ #if TARGET_OS_VISION
+ @implementation RiveMTKView
+@@ -155,6 +155,7 @@
+     rive::Renderer* _renderer;
+ }
+ 
++#if WITH_RIVE_AUDIO
+ - (void)didEnterBackground:(NSNotification*)notification
+ {
+     auto engine = rive::AudioEngine::RuntimeEngine(false);
+@@ -163,7 +164,9 @@
+         engine->stop();
+     }
+ }
++#endif
+ 
++#if WITH_RIVE_AUDIO
+ - (void)didEnterForeground:(NSNotification*)notification
+ {
+     auto engine = rive::AudioEngine::RuntimeEngine(false);
+@@ -172,6 +175,7 @@
+         engine->start();
+     }
+ }
++#endif
+ 
+ - (instancetype)initWithCoder:(NSCoder*)decoder
+ {
+diff --git forkSrcPrefix/Source/Fonts/RiveFallbackFontCache.m forkDstPrefix/Source/Fonts/RiveFallbackFontCache.m
+index 2be611b2a2674b0b0d62455ab4801a12447d4755..939d17b7048d211347c0037da94d24e724d85039 100644
+--- forkSrcPrefix/Source/Fonts/RiveFallbackFontCache.m
++++ forkDstPrefix/Source/Fonts/RiveFallbackFontCache.m
+@@ -6,6 +6,8 @@
+ //  Copyright © 2024 Rive. All rights reserved.
+ //
+ 
++#if WITH_RIVE_TEXT
++
+ #import "RiveFallbackFontCache.h"
+ #import "RiveFont.h"
+ 
+@@ -81,3 +83,5 @@
+ }
+ 
+ @end
++
++#endif
+diff --git forkSrcPrefix/Source/Renderer/FileAssetLoaderAdapter.mm forkDstPrefix/Source/Renderer/FileAssetLoaderAdapter.mm
+index 309e14be66c341175688cc9cf78bd5851b9a80fa..35132dc028813c4cde4b05d1285f3217171be3a0 100644
+--- forkSrcPrefix/Source/Renderer/FileAssetLoaderAdapter.mm
++++ forkDstPrefix/Source/Renderer/FileAssetLoaderAdapter.mm
+@@ -25,6 +25,8 @@ bool rive::FileAssetLoaderAdapter::loadContents(rive::FileAsset& asset,
+ {
+     NSData* data = [NSData dataWithBytes:bytes.data() length:bytes.size()];
+     RiveFactory* myFactory = [[RiveFactory alloc] initWithFactory:factory];
++
++    #if WITH_RIVE_TEXT
+     if (asset.is<rive::FontAsset>())
+     {
+         RiveFontAsset* fontAsset = [[RiveFontAsset alloc]
+@@ -33,7 +35,9 @@ bool rive::FileAssetLoaderAdapter::loadContents(rive::FileAsset& asset,
+                                      andData:data
+                                   andFactory:myFactory];
+     }
+-    else if (asset.is<rive::ImageAsset>())
++    #endif
++
++	if (asset.is<rive::ImageAsset>())
+     {
+         RiveImageAsset* imageAsset = [[RiveImageAsset alloc]
+             initWithFileAsset:asset.as<rive::ImageAsset>()];
+@@ -41,7 +45,9 @@ bool rive::FileAssetLoaderAdapter::loadContents(rive::FileAsset& asset,
+                                      andData:data
+                                   andFactory:myFactory];
+     }
+-    else if (asset.is<rive::AudioAsset>())
++
++	#if WITH_RIVE_AUDIO
++	if (asset.is<rive::AudioAsset>())
+     {
+         RiveAudioAsset* audioAsset = [[RiveAudioAsset alloc]
+             initWithFileAsset:asset.as<rive::AudioAsset>()];
+@@ -49,6 +55,8 @@ bool rive::FileAssetLoaderAdapter::loadContents(rive::FileAsset& asset,
+                                      andData:data
+                                   andFactory:myFactory];
+     }
++    #endif
++
+     return false;
+ }
+ 
+diff --git forkSrcPrefix/Source/Renderer/include/Rive.h forkDstPrefix/Source/Renderer/include/Rive.h
+index ca4e72c47dd89f68caf964acb24002302e9e35fb..9724fe6ccfa2f34ba2a034c15c8dafa2822f5ada 100644
+--- forkSrcPrefix/Source/Renderer/include/Rive.h
++++ forkDstPrefix/Source/Renderer/include/Rive.h
+@@ -9,6 +9,14 @@
+ #ifndef rive_h
+ #define rive_h
+ 
++#ifndef WITH_RIVE_AUDIO
++#define WITH_RIVE_AUDIO 1
++#endif
++
++#ifndef WITH_RIVE_TEXT
++#define WITH_RIVE_TEXT 1
++#endif
++
+ #import <Foundation/Foundation.h>
+ #import <CoreGraphics/CoreGraphics.h>
+ 
+diff --git forkSrcPrefix/Source/Renderer/RiveFactory.mm forkDstPrefix/Source/Renderer/RiveFactory.mm
+index a7b2f51934dcef767ed946d6cbd218d82350bc2c..77826b4f5126c893e9728a7864d2279d90077797 100644
+--- forkSrcPrefix/Source/Renderer/RiveFactory.mm
++++ forkDstPrefix/Source/Renderer/RiveFactory.mm
+@@ -10,14 +10,17 @@
+ #import <RivePrivateHeaders.h>
+ #import <RiveFactory.h>
+ #import <RiveRuntime/RiveRuntime-Swift.h>
++#if WITH_RIVE_TEXT
+ #import <CoreText/CTFont.h>
+ #import <rive/text/font_hb.hpp>
++#endif
+ #import <RenderContext.h>
+ 
+ #if TARGET_OS_IPHONE
+ #import <UIKit/UIFont.h>
+ #endif
+ 
++#if WITH_RIVE_TEXT
+ static rive::rcp<rive::Font> riveFontFromNativeFont(id font,
+                                                     bool useSystemShaper)
+ {
+@@ -36,6 +39,7 @@ static rive::rcp<rive::Font> riveFontFromNativeFont(id font,
+     CTFontRef ctFont = (__bridge CTFontRef)font;
+     return HBFont::FromSystem((void*)ctFont, useSystemShaper, weight, width);
+ }
++#endif
+ 
+ @implementation RiveRenderImage
+ {
+@@ -77,6 +81,7 @@ static rive::rcp<rive::Font> riveFontFromNativeFont(id font,
+ 
+ @end
+ 
++#if WITH_RIVE_AUDIO
+ @implementation RiveAudio
+ {
+     rive::rcp<rive::AudioSource>
+@@ -100,6 +105,7 @@ static rive::rcp<rive::Font> riveFontFromNativeFont(id font,
+ }
+ 
+ @end
++#endif
+ 
+ /*
+  * RiveFactory
+@@ -131,6 +137,7 @@ static rive::rcp<rive::Font> riveFontFromNativeFont(id font,
+                           rive::Span<const uint8_t>(bytes, [data length]))];
+ }
+ 
++#if WITH_RIVE_TEXT
+ - (RiveFont*)decodeFont:(nonnull NSData*)data
+ {
+     UInt8* bytes = (UInt8*)[data bytes];
+@@ -150,7 +157,9 @@ static rive::rcp<rive::Font> riveFontFromNativeFont(id font,
+     return [[RiveFont alloc] initWithFont:riveFontFromNativeFont(font, true)];
+ }
+ #endif
++#endif
+ 
++#if WITH_RIVE_AUDIO
+ - (RiveAudio*)decodeAudio:(nonnull NSData*)data
+ {
+     UInt8* bytes = (UInt8*)[data bytes];
+@@ -158,5 +167,6 @@ static rive::rcp<rive::Font> riveFontFromNativeFont(id font,
+         initWithAudio:instance->decodeAudio(
+                           rive::Span<const uint8_t>(bytes, [data length]))];
+ }
++#endif
+ 
+ @end
+diff --git forkSrcPrefix/Source/Fonts/RiveFont.h forkDstPrefix/Source/Fonts/RiveFont.h
+index 17348d3ae1562d41ce6f99c375535d2c471fa351..9ea407a030ba8983fa6dfc8dbd693e6c8793eeba 100644
+--- forkSrcPrefix/Source/Fonts/RiveFont.h
++++ forkDstPrefix/Source/Fonts/RiveFont.h
+@@ -6,6 +6,8 @@
+ //  Copyright © 2024 Rive. All rights reserved.
+ //
+ 
++#if WITH_RIVE_TEXT
++
+ #import <Foundation/Foundation.h>
+ 
+ NS_ASSUME_NONNULL_BEGIN
+@@ -57,3 +59,5 @@ typedef NSArray<id<RiveFallbackFontProvider>>* _Nonnull (
+ @end
+ 
+ NS_ASSUME_NONNULL_END
++
++#endif
+diff --git forkSrcPrefix/Source/Renderer/include/RivePrivateHeaders.h forkDstPrefix/Source/Renderer/include/RivePrivateHeaders.h
+index a2b8cd0dc9cb839bc9425be7cc88e0c3f5cf17db..2cfd145324cfdd3cfbefc5a0a3a1d6155508500b 100644
+--- forkSrcPrefix/Source/Renderer/include/RivePrivateHeaders.h
++++ forkDstPrefix/Source/Renderer/include/RivePrivateHeaders.h
+@@ -139,19 +139,23 @@ NS_ASSUME_NONNULL_BEGIN
+ - (instancetype)initWithFileAsset:(const rive::ImageAsset*)fileAsset;
+ @end
+ 
++#if WITH_RIVE_TEXT
+ /*
+  * RiveFontAsset
+  */
+ @interface RiveFontAsset ()
+ - (instancetype)initWithFileAsset:(const rive::FontAsset*)fileAsset;
+ @end
++#endif
+ 
++#if WITH_RIVE_AUDIO
+ /*
+  * RiveAudioAsset
+  */
+ @interface RiveAudioAsset ()
+ - (instancetype)initWithFileAsset:(const rive::AudioAsset*)fileAsset;
+ @end
++#endif
+ 
+ /*
+  * RiveFileAsset
+@@ -160,20 +164,24 @@ NS_ASSUME_NONNULL_BEGIN
+ - (instancetype)initWithFactory:(rive::Factory*)factory;
+ @end
+ 
++#if WITH_RIVE_TEXT
+ @interface RiveFont ()
+ - (instancetype)initWithFont:(rive::rcp<rive::Font>)font;
+ - (rive::rcp<rive::Font>)instance;
+ @end
++#endif
+ 
+ @interface RiveRenderImage ()
+ - (instancetype)initWithImage:(rive::rcp<rive::RenderImage>)image;
+ - (rive::rcp<rive::RenderImage>)instance;
+ @end
+ 
++#if WITH_RIVE_AUDIO
+ @interface RiveAudio ()
+ - (instancetype)initWithAudio:(rive::rcp<rive::AudioSource>)audio;
+ - (rive::rcp<rive::AudioSource>)instance;
+ @end
++#endif
+ 
+ @interface RiveDataBindingViewModel ()
+ - (instancetype)initWithViewModel:(rive::ViewModelRuntime*)viewModel;
+diff --git forkSrcPrefix/Source/Fonts/RiveFallbackFontCache.h forkDstPrefix/Source/Fonts/RiveFallbackFontCache.h
+index 1492045f852893d8e02d75a3af5e061030b075c1..f98b833d2fa617c2b60fed3dc73129310c7a1139 100644
+--- forkSrcPrefix/Source/Fonts/RiveFallbackFontCache.h
++++ forkDstPrefix/Source/Fonts/RiveFallbackFontCache.h
+@@ -6,6 +6,8 @@
+ //  Copyright © 2024 Rive. All rights reserved.
+ //
+ 
++#if WITH_RIVE_TEXT
++
+ #import <Foundation/Foundation.h>
+ #import <rive/text/font_hb.hpp>
+ #import <RiveRuntime/RiveRuntime-Swift.h>
+@@ -42,3 +44,5 @@ NS_ASSUME_NONNULL_BEGIN
+ @end
+ 
+ NS_ASSUME_NONNULL_END
++
++#endif
+diff --git forkSrcPrefix/Source/Logging/RiveLogger+File.swift forkDstPrefix/Source/Logging/RiveLogger+File.swift
+index ed41c2ae62d5bf1b25fe5ca135dc4f7a4757c516..1bda1cb561b92f0eccfe4bd486c7341133efebae 100644
+--- forkSrcPrefix/Source/Logging/RiveLogger+File.swift
++++ forkDstPrefix/Source/Logging/RiveLogger+File.swift
+@@ -13,7 +13,9 @@ enum RiveLoggerFileEvent {
+     case fatalError(String)
+     case error(String)
+     case loadingAsset(RiveFileAsset)
++    #if WITH_RIVE_TEXT
+     case loadedFontAssetFromURL(URL, RiveFontAsset)
++    #endif
+     case loadedImageAssetFromURL(URL, RiveImageAsset)
+     case loadedAsset(RiveFileAsset)
+     case loadedFromURL(URL)
+@@ -34,9 +36,11 @@ extension RiveLogger {
+         log(file: nil, event: .loadingAsset(asset))
+     }
+ 
++	#if WITH_RIVE_TEXT
+     @objc(logFontAssetLoad:fromURL:) static func log(fontAssetLoad fontAsset: RiveFontAsset, from url: URL) {
+         log(file: nil, event: .loadedFontAssetFromURL(url, fontAsset))
+     }
++    #endif
+ 
+     @objc(logImageAssetLoad:fromURL:) static func log(imageAssetLoad imageAsset: RiveImageAsset, from url: URL) {
+         log(file: nil, event: .loadedImageAssetFromURL(url, imageAsset))
+@@ -84,10 +88,12 @@ extension RiveLogger {
+             _log(event: event, level: .debug) {
+                 Self.file.debug("Loaded asset \(asset.name())")
+             }
++        #if WITH_RIVE_TEXT
+         case .loadedFontAssetFromURL(let url, let asset):
+             _log(event: event, level: .debug) {
+                 Self.file.debug("Loaded font asset \(asset.name()) from URL: \(url)")
+             }
++        #endif
+         case .loadedImageAssetFromURL(let url, let asset):
+             _log(event: event, level: .debug) {
+                 Self.file.debug("Loaded image asset \(asset.name()) from URL: \(url)")
+diff --git forkSrcPrefix/Source/Fonts/RiveFallbackFontDescriptor.swift forkDstPrefix/Source/Fonts/RiveFallbackFontDescriptor.swift
+index d2a877078da6b8494ea06ff389a49345d754c286..8394e76baed035a439fd3c098f7a69e257ae22f8 100644
+--- forkSrcPrefix/Source/Fonts/RiveFallbackFontDescriptor.swift
++++ forkDstPrefix/Source/Fonts/RiveFallbackFontDescriptor.swift
+@@ -6,6 +6,8 @@
+ //  Copyright © 2024 Rive. All rights reserved.
+ //
+ 
++#if WITH_RIVE_TEXT
++
+ import Foundation
+ import SwiftUI
+ 
+@@ -89,3 +91,5 @@ import SwiftUI
+         self.width = width
+     }
+ }
++
++#endif
+diff --git forkSrcPrefix/Source/Fonts/RiveFallbackFontProvider.swift forkDstPrefix/Source/Fonts/RiveFallbackFontProvider.swift
+index a821e76f9a56f5cd791d577c417d5c3764814f84..e27d7160b51a8c65dbd2efa684cfed6d19154d1c 100644
+--- forkSrcPrefix/Source/Fonts/RiveFallbackFontProvider.swift
++++ forkDstPrefix/Source/Fonts/RiveFallbackFontProvider.swift
+@@ -6,6 +6,8 @@
+ //  Copyright © 2024 Rive. All rights reserved.
+ //
+ 
++#if WITH_RIVE_TEXT
++
+ import Foundation
+ 
+ /// A type that is capable of providing fonts usable as fallback fonts.
+@@ -13,3 +15,5 @@ import Foundation
+     /// An array of possible fonts to use as fallback fonts.
+     @objc var fallbackFont: RiveNativeFont { get }
+ }
++
++#endif
+diff --git forkSrcPrefix/Source/Renderer/RiveFileAsset.mm forkDstPrefix/Source/Renderer/RiveFileAsset.mm
+index 72513ec37ab28fbc3ee8cc31c0978dd9258ccf07..bc74c73330f9144fd126715e8a00726ec15f8973 100644
+--- forkSrcPrefix/Source/Renderer/RiveFileAsset.mm
++++ forkDstPrefix/Source/Renderer/RiveFileAsset.mm
+@@ -96,6 +96,7 @@
+ 
+ @end
+ 
++#if WITH_RIVE_TEXT
+ @implementation RiveFontAsset
+ - (instancetype)initWithFileAsset:(const rive::FontAsset*)fileAsset
+ {
+@@ -107,7 +108,9 @@
+     ((rive::FontAsset*)[self getInstance])->font([font instance]);
+ }
+ @end
++#endif
+ 
++#if WITH_RIVE_AUDIO
+ @implementation RiveAudioAsset
+ - (instancetype)initWithFileAsset:(const rive::AudioAsset*)fileAsset
+ {
+@@ -119,3 +122,4 @@
+     ((rive::AudioAsset*)[self getInstance])->audioSource([audio instance]);
+ }
+ @end
++#endif
+diff --git forkSrcPrefix/Source/Renderer/include/RiveFactory.h forkDstPrefix/Source/Renderer/include/RiveFactory.h
+index d3b4b048502157909c85984023284af6fcc4d6fa..d714101bc4595176e162932f6b75410f5eb16384 100644
+--- forkSrcPrefix/Source/Renderer/include/RiveFactory.h
++++ forkDstPrefix/Source/Renderer/include/RiveFactory.h
+@@ -17,7 +17,9 @@
+ #import <AppKit/NSFont.h>
+ #endif
+ 
++#if WITH_RIVE_TEXT
+ @class RiveFont;
++#endif
+ 
+ NS_ASSUME_NONNULL_BEGIN
+ 
+@@ -25,21 +27,27 @@ NS_ASSUME_NONNULL_BEGIN
+ - (nullable instancetype)initWithData:(NSData*)data;
+ @end
+ 
++#if WITH_RIVE_AUDIO
+ @interface RiveAudio : NSObject
+ @end
++#endif
+ 
+ /*
+  * RiveFactory
+  */
+ @interface RiveFactory : NSObject
++#if WITH_RIVE_TEXT
+ - (RiveFont*)decodeFont:(NSData*)data;
+ #if TARGET_OS_IPHONE || TARGET_OS_VISION || TARGET_OS_TV
+ - (RiveFont*)decodeUIFont:(UIFont*)data NS_SWIFT_NAME(decodeFont(_:));
+ #else
+ - (RiveFont*)decodeNSFont:(NSFont*)data NS_SWIFT_NAME(decodeFont(_:));
+ #endif
++#endif
+ - (RiveRenderImage*)decodeImage:(NSData*)data;
++#if WITH_RIVE_AUDIO
+ - (RiveAudio*)decodeAudio:(NSData*)data;
++#endif
+ @end
+ 
+ NS_ASSUME_NONNULL_END
+diff --git forkSrcPrefix/Source/Fonts/RiveFont.m forkDstPrefix/Source/Fonts/RiveFont.m
+index 3e2ab01a2416a774d9745a0e1693146968f3e6c1..0dd499eaaa0f1e953e2e8b039dda0970d191a3c5 100644
+--- forkSrcPrefix/Source/Fonts/RiveFont.m
++++ forkDstPrefix/Source/Fonts/RiveFont.m
+@@ -6,6 +6,8 @@
+ //  Copyright © 2024 Rive. All rights reserved.
+ //
+ 
++#if WITH_RIVE_TEXT
++
+ #import "RiveFont.h"
+ #import "RiveFallbackFontCache.h"
+ #import <RiveRuntime/RiveRuntime-Swift.h>
+@@ -271,3 +273,5 @@ static rive::rcp<rive::Font> findFallbackFont(const rive::Unichar missing,
+ }
+ 
+ @end
++
++#endif
+diff --git forkSrcPrefix/Source/Renderer/include/RiveFileAsset.h forkDstPrefix/Source/Renderer/include/RiveFileAsset.h
+index b246b36422baa77b72d24850e4c11f3a8b216425..a0203df521c8ab45f0eb018cf565722d818dc546 100644
+--- forkSrcPrefix/Source/Renderer/include/RiveFileAsset.h
++++ forkDstPrefix/Source/Renderer/include/RiveFileAsset.h
+@@ -12,8 +12,12 @@
+ #import <Foundation/Foundation.h>
+ 
+ @class RiveRenderImage;
++#if WITH_RIVE_TEXT
+ @class RiveFont;
++#endif
++#if WITH_RIVE_AUDIO
+ @class RiveAudio;
++#endif
+ 
+ NS_ASSUME_NONNULL_BEGIN
+ 
+@@ -38,19 +42,23 @@ NS_ASSUME_NONNULL_BEGIN
+ - (void)renderImage:(RiveRenderImage*)image;
+ @end
+ 
++#if WITH_RIVE_TEXT
+ /*
+  * RiveFontAsset
+  */
+ @interface RiveFontAsset : RiveFileAsset
+ - (void)font:(RiveFont*)font;
+ @end
++#endif
+ 
++#if WITH_RIVE_AUDIO
+ /*
+  * RiveAudioAsset
+  */
+ @interface RiveAudioAsset : RiveFileAsset
+ - (void)audio:(RiveAudio*)audio;
+ @end
++#endif
+ 
+ NS_ASSUME_NONNULL_END
+ 
